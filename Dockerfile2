@@ -1,0 +1,32 @@
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+
+
+WORKDIR /src
+COPY picturethis.csproj .
+COPY /wwwroot/appsettings.json .
+RUN dotnet restore picturethis.csproj
+
+
+COPY . .
+RUN dotnet build picturethis.csproj -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish picturethis.csproj -c Release -o /app/publish
+
+FROM docker.io/nginx AS final
+WORKDIR /usr/share/nginx/html
+COPY --from=build /src/appsettings.json .
+
+
+COPY --from=build /src/docker_run.sh .
+COPY --from=publish /app/publish/wwwroot .
+COPY nginx.conf /etc/nginx/nginx.conf
+RUN chown -R 1001:0 /var/cache/nginx && chmod -R ug+rwx /var/cache/nginx && chown -R 1001:0 /var/run
+
+RUN chmod +x ./docker_run.sh
+RUN chmod 777 ./
+
+USER 1001
+EXPOSE 5050
+
+CMD ./docker_run.sh
